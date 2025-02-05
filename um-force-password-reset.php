@@ -2,7 +2,7 @@
 /**
  * Plugin Name:         Ultimate Member - Force Password Reset
  * Description:         Extension to Ultimate Member for resetting password at first User login.
- * Version:             1.0.0
+ * Version:             1.1.0
  * Requires PHP:        7.4
  * Author:              Miss Veronica
  * License:             GPL v3 or later
@@ -25,6 +25,8 @@ class UM_Force_Password_Reset {
         define( 'Plugin_Basename_FPR', plugin_basename(__FILE__));
 
         add_action( 'wp_login',                        array( $this, 'force_password_reset' ), 9, 1 );
+        add_action( 'um_reset_password_errors_hook',   array( $this, 'reset_password_errors_reuse_pwd' ), 10, 1 );
+        add_action( 'um_change_password_errors_hook',  array( $this, 'reset_password_errors_reuse_pwd' ), 10, 1 );
         add_action( 'um_after_changing_user_password', array( $this, 'force_password_reset_clear' ), 10, 1 );
         add_filter( 'um_settings_structure',           array( $this, 'um_settings_structure_force_password_reset' ), 10, 1 );
         add_filter( 'plugin_action_links_' . Plugin_Basename_FPR, array( $this, 'force_password_reset_settings_link' ), 10 );
@@ -47,6 +49,16 @@ class UM_Force_Password_Reset {
                 $reset_url = UM()->password()->reset_url();
                 wp_logout();
                 exit( wp_redirect( $reset_url ) );
+            }
+        }
+    }
+
+    public function reset_password_errors_reuse_pwd( $post_form ) {
+
+        if ( isset( $post_form['user_password'] )) {
+            $um_force_pwd_reuse_pwds = array_map( 'trim', array_map( 'sanitize_text_field', explode( ',', UM()->options()->get( 'um_force_pwd_reuse_pwds' ))));
+            if ( ! empty( $um_force_pwd_reuse_pwds ) && in_array( $post_form['user_password'], $um_force_pwd_reuse_pwds )) {
+                UM()->form()->add_error( 'user_password', __( 'You must enter another password', 'ultimate-member' ) );
             }
         }
     }
@@ -98,6 +110,13 @@ class UM_Force_Password_Reset {
                         'description'    => esc_html__( 'Select the User Role(s) to be included in Force Password Reset at first login.', 'ultimate-member' ),
                         'options'        => UM()->roles()->get_roles(),
                         'size'           => 'medium',
+                    );
+
+                    $section_fields[] = array(
+                        'id'             => 'um_force_pwd_reuse_pwds',
+                        'type'           => 'text',
+                        'label'          => $prefix . esc_html__( 'Forbidden passwords', 'ultimate-member' ),
+                        'description'    => esc_html__( "Enter comma separated your pre-defined passwords which can't be reused by nobody. Leave empty for no validation of password reuse.", 'ultimate-member' ),
                     );
 
                     $settings['access']['sections']['other']['form_sections']['force_pwd']['title']       = esc_html__( 'Force Password Reset', 'ultimate-member' );
